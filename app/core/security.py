@@ -32,8 +32,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
  
     to_encode.update({"exp": expire})
 
-    # jwt.encode() signs the payload with our SECRET_KEY using HS256
-    # This produces the final JWT string
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 

@@ -1,13 +1,4 @@
-# SECRET_KEY = "your-super-secret-key-change-this-in-production"
-
-# # HS256 = HMAC with SHA-256. It's the most common algorithm
-# # for JWT. Think of it as the "encryption method".
-# ALGORITHM = "HS256"
-
-# ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
 import os
-
 # JWT Settings
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-production")
 ALGORITHM = "HS256"
