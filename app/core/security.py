@@ -46,3 +46,4 @@ def decode_access_token(token: str) -> dict | None:
     except JWTError:
         # Token is invalid, tampered with, or expired
         return None
+    

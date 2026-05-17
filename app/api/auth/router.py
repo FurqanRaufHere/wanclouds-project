@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.api.auth.schemas import UserCreate, UserLogin, UserResponse, Token
 from app.core.security import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -39,7 +39,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     token = create_access_token(data={
-        "sub": str(user.id),
-        "role": user.role.value
+        "sub": user.id,
+        "role": user.role
     })
     return Token(access_token=token, token_type="bearer")
