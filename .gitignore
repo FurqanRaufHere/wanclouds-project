@@ -7,3 +7,5 @@ logs/
 *.log
 
 mysql_data/
+
+app/api/routes.py

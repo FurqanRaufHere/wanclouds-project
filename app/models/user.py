@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, Enum
-from app.db.database import Base
+from app.db.base import Base
 
 
 class User(Base):
@@ -19,12 +19,11 @@ class User(Base):
     ROLE_KEY = "role"
 
     # Column length constants
-    ID_LEN = 36
     USERNAME_MAX_LEN = 50
     EMAIL_MAX_LEN = 100
     PASSWORD_HASH_LEN = 255
 
-    id = Column(String(ID_LEN), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     username = Column(String(USERNAME_MAX_LEN), unique=True, index=True, nullable=False)
     email = Column(String(EMAIL_MAX_LEN), unique=True, index=True, nullable=False)
     hashed_password = Column(String(PASSWORD_HASH_LEN), nullable=False)
