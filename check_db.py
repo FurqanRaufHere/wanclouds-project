@@ -1,12 +1,10 @@
-import asyncio, sys, os
+import asyncio, sys
 from sqlalchemy.ext.asyncio import create_async_engine
+from app.core.config import DATABASE_URL
 
 
 async def check():
-    url = (
-        f"mysql+aiomysql://{os.getenv('MYSQL_USER','appuser')}:{os.getenv('MYSQL_PASSWORD','apppassword')}"
-        f"@{os.getenv('MYSQL_HOST','localhost')}:{os.getenv('MYSQL_PORT','3306')}/{os.getenv('MYSQL_DB','appdb')}"
-    )
+    url = DATABASE_URL.replace("mysql+pymysql", "mysql+aiomysql")
     engine = create_async_engine(url)
     try:
         async with engine.connect():
