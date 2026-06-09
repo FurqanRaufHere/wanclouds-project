@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+*.db
+*.sqlite
+logs/
+*.log
+.git/
+.gitignore
+README.md
+alembic/versions/__pycache__/
