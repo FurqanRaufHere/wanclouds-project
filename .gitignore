@@ -1,9 +1,10 @@
-
 __pycache__/
-
 alembic/versions/__pycache__/
-
 logs/
 *.log
-
 mysql_data/
+.env
+*.db
+*.sqlite
+.venv/
+venv/
