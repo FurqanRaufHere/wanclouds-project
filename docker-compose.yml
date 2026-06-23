@@ -38,6 +38,23 @@ services:
       - backend
     restart: unless-stopped
 
+  celery_beat:
+    build: .
+    container_name: celery_beat
+    command: celery -A app.celery_app beat --loglevel=info
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: redis
