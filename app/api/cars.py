@@ -1,58 +1,48 @@
 from fastapi import APIRouter, Depends
-from app.tasks.fetch_cars import fetch_cars_task
+from pydantic import BaseModel
 from app.core.dependencies import get_current_user
-from app.models.user import User
-from app.db.database import SessionLocal
+from app.db.database import get_db_session
 from app.models.cars import Car
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/cars", tags=["Cars"])
-
-
-@router.post("/fetch")
-def trigger_fetch(current_user: User = Depends(get_current_user)):
-    task = fetch_cars_task.delay()
-    return {
-        "message": "Car fetch task started in background",
-        "task_id": task.id,
-        "status": "queued"
-    }
+router = APIRouter(
+    prefix="/cars",
+    tags=["Cars"],
+    dependencies=[Depends(get_current_user)]  # protects ALL routes automatically
+)
 
 
-@router.get("/status/{task_id}")
-def get_task_status(task_id: str, current_user: User = Depends(get_current_user)):
-    from app.celery_app import celery_app
-    task = celery_app.AsyncResult(task_id)
-    return {
-        "task_id": task_id,
-        "status": task.status,
-        "result": task.result if task.ready() else None
-    }
+# Schemas
+class CarResponse(BaseModel):
+    id: int
+    make: str
+    model: str
+    category: str | None
+    year: int | None
+
+    model_config = {"from_attributes": True}
 
 
-@router.get("/")
+class CarsListResponse(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    cars: list[CarResponse]
+
+
+# Common pagination dependency
+def pagination(skip: int = 0, limit: int = 20):
+    return {"skip": skip, "limit": limit}
+
+
+# Routes
+@router.get("/", response_model=CarsListResponse)
 def get_cars(
-    skip: int = 0,
-    limit: int = 20,
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db_session),
+    pages: dict = Depends(pagination)
 ):
-    db = SessionLocal()
-    try:
-        cars = db.query(Car).offset(skip).limit(limit).all()
-        total = db.query(Car).count()
-        return {
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-            "cars": [
-                {
-                    "id": car.id,
-                    "make": car.make,
-                    "model": car.model,
-                    "category": car.category,
-                    "year": car.year
-                }
-                for car in cars
-            ]
-        }
-    finally:
-        db.close()
+    skip = pages["skip"]
+    limit = pages["limit"]
+    cars = db.query(Car).offset(skip).limit(limit).all()
+    total = db.query(Car).count()
+    return CarsListResponse(total=total, skip=skip, limit=limit, cars=cars)

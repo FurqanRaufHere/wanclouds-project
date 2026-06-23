@@ -1,9 +1,6 @@
 from celery import Celery
 from app.core.config import REDIS_URL
 
-# Create Celery instance
-# broker = where tasks are sent (Redis)
-# backend = where results are stored (also Redis)
 celery_app = Celery(
     "worker",
     broker=REDIS_URL,
@@ -16,4 +13,10 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
+    beat_schedule={
+        "fetch-cars-every-24-hours": {
+            "task": "fetch_cars",
+            "schedule": 86400.0,  # 86400 seconds = 24 hours
+        },
+    }
 )
