@@ -1,3 +1,6 @@
+import inspect
+from functools import wraps
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -43,3 +46,36 @@ def require_role(*roles: str):
             )
         return current_user
     return role_checker
+
+
+def authenticate(func):
+    """Route decorator that gates access behind get_current_user, instead of
+    declaring the dependency on every endpoint signature or at the router level."""
+    sig = inspect.signature(func)
+    if "current_user" in sig.parameters:
+        return func
+
+    current_user_param = inspect.Parameter(
+        "current_user",
+        kind=inspect.Parameter.KEYWORD_ONLY,
+        default=Depends(get_current_user),
+        annotation=User,
+    )
+    new_sig = sig.replace(parameters=[*sig.parameters.values(), current_user_param])
+
+    if inspect.iscoroutinefunction(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            kwargs.pop("current_user", None)
+            return await func(*args, **kwargs)
+
+        async_wrapper.__signature__ = new_sig
+        return async_wrapper
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        kwargs.pop("current_user", None)
+        return func(*args, **kwargs)
+
+    wrapper.__signature__ = new_sig
+    return wrapper

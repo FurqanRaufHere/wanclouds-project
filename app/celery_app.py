@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from celery import Celery
 from app.core.config import REDIS_URL
 
@@ -16,7 +18,7 @@ celery_app.conf.update(
     beat_schedule={
         "fetch-cars-every-24-hours": {
             "task": "fetch_cars",
-            "schedule": 86400.0,  # 86400 seconds = 24 hours
+            "schedule": timedelta(hours=24),
         },
     }
 )
