@@ -1,8 +1,8 @@
 services:
 
-  api:
+  web:
     build: .
-    container_name: fastapi_app
+    container_name: web
     ports:
       - "8000:8000"
     volumes:
@@ -21,10 +21,10 @@ services:
       - backend
     restart: unless-stopped
 
-  celery_worker:
+  vehicle_discovery_worker:
     build: .
-    container_name: celery_worker
-    command: sh worker.sh
+    container_name: vehicle_discovery_worker
+    command: sh scripts/worker.sh
     volumes:
       - ./app:/app/app
     env_file:
@@ -38,10 +38,10 @@ services:
       - backend
     restart: unless-stopped
 
-  celery_beat:
+  vehicle_discovery_beat:
     build: .
-    container_name: celery_beat
-    command: sh beat.sh
+    container_name: vehicle_discovery_beat
+    command: sh scripts/beat.sh
     volumes:
       - ./app:/app/app
     env_file:

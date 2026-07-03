@@ -1,7 +1,5 @@
-from typing import Iterable
-
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, relationship
 
 from app.db.base import Base
 
@@ -19,23 +17,22 @@ class CarMake(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(NAME_MAX_LEN), unique=True, nullable=False)
 
+    # A make has many models; deleting a make cascades to its models (and their years).
+    models = relationship(
+        "CarModel",
+        back_populates="make",
+        cascade="all, delete-orphan",
+    )
+
     def to_json(self) -> dict:
         return {self.ID_KEY: self.id, self.NAME_KEY: self.name}
 
 
-def get_or_create_makes(db: Session, names: Iterable[str]) -> dict[str, int]:
-    names = {name for name in names if name is not None}
-    if not names:
-        return {}
-
-    existing = db.query(CarMake).filter(CarMake.name.in_(names)).all()
-    name_to_id = {row.name: row.id for row in existing}
-
-    missing = names - name_to_id.keys()
-    if missing:
-        new_rows = [CarMake(name=name) for name in missing]
-        db.add_all(new_rows)
+def get_or_create_make(db: Session, name: str) -> "CarMake":
+    """Return the CarMake with this name, creating it if needed."""
+    make = db.query(CarMake).filter(CarMake.name == name).first()
+    if make is None:
+        make = CarMake(name=name)
+        db.add(make)
         db.flush()
-        name_to_id.update({row.name: row.id for row in new_rows})
-
-    return name_to_id
+    return make

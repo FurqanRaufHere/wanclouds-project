@@ -1,9 +1,9 @@
 import requests
 from app.celery_app import celery_app
 from app.db.database import get_db
-from app.models.car_make import get_or_create_makes
-from app.models.car_model import get_or_create_models
-from app.models.car_year import get_or_create_years
+from app.models.car_make import get_or_create_make
+from app.models.car_model import get_or_create_model
+from app.models.car_year import get_or_create_year
 from app.models.cars import Car
 from app.core.config import BACK4APP_APP_ID, BACK4APP_MASTER_KEY
 
@@ -48,20 +48,28 @@ def fetch_cars_task():
 
             new_items = [item for item in results if item.get("objectId") not in existing_ids]
 
-            make_ids = get_or_create_makes(db, (item.get("Make", "") for item in new_items))
-            model_ids = get_or_create_models(db, (item.get("Model", "") for item in new_items))
-            year_ids = get_or_create_years(db, (item.get("Year") for item in new_items))
+            new_cars = []
+            for item in new_items:
+                make_name = item.get("Make", "")
+                model_name = item.get("Model", "")
+                year_value = item.get("Year")
 
-            new_cars = [
-                Car(
-                    make_id=make_ids[item.get("Make", "")],
-                    model_id=model_ids[item.get("Model", "")],
-                    category=item.get("Category", ""),
-                    year_id=year_ids.get(item.get("Year")),
-                    object_id=item.get("objectId", "")
+                # Resolve the make -> model -> year hierarchy top down.
+                make = get_or_create_make(db, make_name)
+                model = get_or_create_model(db, make.id, model_name)
+                year_id = None
+                if year_value is not None:
+                    year_id = get_or_create_year(db, model.id, year_value).id
+
+                new_cars.append(
+                    Car(
+                        make_id=make.id,
+                        model_id=model.id,
+                        category=item.get("Category", ""),
+                        year_id=year_id,
+                        object_id=item.get("objectId", ""),
+                    )
                 )
-                for item in new_items
-            ]
 
             db.bulk_save_objects(new_cars)
             db.commit()
