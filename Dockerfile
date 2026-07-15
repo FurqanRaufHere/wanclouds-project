@@ -14,7 +14,3 @@ COPY . .
 
 # Expose port
 EXPOSE 8000
-
-
-CMD ["sh", "scripts/web.sh"]
-    

@@ -2,11 +2,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
+from app.api.cars import utils
 from app.api.cars.schemas import CarResponse, CarsListResponse, CarUpdateRequest
 from app.common.schemas import PaginationQuerySchema
 from app.core.dependencies import authenticate
 from app.db.database import get_db
-from app.models.cars import Car
 
 router = APIRouter(prefix="/cars", tags=["Cars"])
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/cars", tags=["Cars"])
 @authenticate
 def get_cars(pagination: Annotated[PaginationQuerySchema, Query()]):
     with get_db() as db:
-        items, total = Car.get_paginated(db, pagination.skip, pagination.limit)
+        items, total = utils.get_cars_paginated(db, pagination.skip, pagination.limit)
         return CarsListResponse(total=total, skip=pagination.skip, limit=pagination.limit, items=items)
 
 
@@ -24,13 +24,13 @@ def get_cars(pagination: Annotated[PaginationQuerySchema, Query()]):
 @authenticate
 def update_car(car_id: str, payload: CarUpdateRequest):
     with get_db() as db:
-        car = Car.get_or_404(db, car_id)
-        return car.apply_update(db, payload.model_dump(exclude_unset=True))
+        car = utils.get_car_or_404(db, car_id)
+        return utils.update_car(db, car, payload.model_dump(exclude_unset=True))
 
 
 @router.delete("/{car_id}", status_code=status.HTTP_204_NO_CONTENT)
 @authenticate
 def delete_car(car_id: str):
     with get_db() as db:
-        car = Car.get_or_404(db, car_id)
-        car.delete(db)
+        car = utils.get_car_or_404(db, car_id)
+        utils.delete_car(db, car)

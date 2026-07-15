@@ -1,13 +1,12 @@
 import uuid
 
-from fastapi import HTTPException, status
 from sqlalchemy import Column, ForeignKey, Integer, String
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
-from app.models.car_make import CarMake, get_or_create_make
-from app.models.car_model import CarModel, get_or_create_model
-from app.models.car_year import CarYear, get_or_create_year
+from app.models.car_make import CarMake
+from app.models.car_model import CarModel
+from app.models.car_year import CarYear
 
 
 class Car(Base):
@@ -74,49 +73,3 @@ class Car(Base):
             self.YEAR_KEY: self.year,
             self.OBJECT_ID_KEY: self.object_id,
         }
-
-    # Data-access / business logic lives on the model so routers stay thin.
-    @classmethod
-    def get_paginated(cls, db: Session, skip: int, limit: int) -> tuple[list["Car"], int]:
-        items = db.query(cls).offset(skip).limit(limit).all()
-        total = db.query(cls).count()
-        return items, total
-
-    @classmethod
-    def get_or_404(cls, db: Session, car_id: str) -> "Car":
-        car = db.query(cls).filter(cls.id == car_id).first()
-        if car is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Car with id {car_id} not found",
-            )
-        return car
-
-    def apply_update(self, db: Session, data: dict) -> "Car":
-        # make/model/year form a hierarchy, so resolve them together: a model is
-        # scoped to its make, and a year to its model. Fall back to this car's
-        # current values for any part of the hierarchy the payload doesn't change.
-        if any(key in data for key in (self.MAKE_KEY, self.MODEL_KEY, self.YEAR_KEY)):
-            make_name = data.pop(self.MAKE_KEY, self.make)
-            model_name = data.pop(self.MODEL_KEY, self.model)
-            year_value = data.pop(self.YEAR_KEY, self.year)
-
-            make = get_or_create_make(db, make_name)
-            model = get_or_create_model(db, make.id, model_name)
-            self.make_id = make.id
-            self.model_id = model.id
-            self.year_id = (
-                get_or_create_year(db, model.id, year_value).id
-                if year_value is not None
-                else None
-            )
-
-        for field, value in data.items():
-            setattr(self, field, value)
-        db.commit()
-        db.refresh(self)
-        return self
-
-    def delete(self, db: Session) -> None:
-        db.delete(self)
-        db.commit()
