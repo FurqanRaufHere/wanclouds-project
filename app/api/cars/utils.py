@@ -50,5 +50,9 @@ def update_car(db: Session, car: Car, data: dict) -> Car:
 
 
 def delete_car(db: Session, car: Car) -> None:
+    # A car only *references* make/model/year (many-to-one); it is the child
+    # side of those FKs and nothing references a car in turn. So deleting a car
+    # is a single DELETE on the cars row: it is never blocked by a relationship,
+    # and it never cascades into the shared make/model/year lookup rows.
     db.delete(car)
     db.commit()
