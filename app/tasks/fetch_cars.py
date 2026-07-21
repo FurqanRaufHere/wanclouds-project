@@ -14,6 +14,8 @@ HEADERS = {
 
 BASE_URL = "https://parseapi.back4app.com/classes/Car_Model_List"
 
+REQUEST_TIMEOUT_SECONDS = 30
+
 
 @celery_app.task(name="fetch_cars")
 def fetch_cars_task():
@@ -30,7 +32,11 @@ def fetch_cars_task():
                 "keys": "Make,Model,Category,Year"
             }
 
-            response = requests.get(BASE_URL, headers=HEADERS, params=params)
+            # Always time out: without one, a hung response holds this worker
+            # process open indefinitely.
+            response = requests.get(
+                BASE_URL, headers=HEADERS, params=params, timeout=REQUEST_TIMEOUT_SECONDS
+            )
 
             if response.status_code != 200:
                 break
