@@ -1,6 +1,8 @@
-# FastAPI Auth Service
+# Vehicle Discovery Service
 
-A containerized REST API with JWT authentication, Role-Based Access Control (RBAC), MySQL database, Alembic migrations, and microservice communication, all orchestrated with Docker Compose.
+A containerized REST API that ingests car data from Back4App on a schedule and
+exposes it behind JWT authentication. FastAPI + MySQL + Celery, orchestrated
+with Docker Compose.
 
 ---
 
@@ -9,23 +11,57 @@ A containerized REST API with JWT authentication, Role-Based Access Control (RBA
 | Technology | Purpose |
 |---|---|
 | FastAPI | Web framework |
-| SQLAlchemy | ORM (database interface) |
+| SQLAlchemy | ORM |
 | Alembic | Database migrations |
-| MySQL 8.0 | Database (runs in Docker) |
+| MySQL 8.0 | Database |
+| Celery | Background task queue |
+| Celery Beat | Task scheduler |
+| Redis | Celery broker and result backend |
 | JWT (python-jose) | Authentication tokens |
 | bcrypt (passlib) | Password hashing |
-| Docker + Docker Compose | Containerization |
-| httpx | Inter-service HTTP communication |
+| Docker Compose | Orchestration |
 
 ---
 
 ## Services
 
-| Service | Port | Description |
+| Container | Port | Description |
 |---|---|---|
-| `api` | 8000 | Main FastAPI app (auth + protected routes) |
-| `service2` | 8001 | Second microservice (communicates with api) |
-| `mysql` | 3306 | MySQL database (internal only, not exposed) |
+| `web` | 8000 | FastAPI app — auth and cars endpoints |
+| `vehicle_discovery_worker` | — | Celery worker, executes the fetch task |
+| `vehicle_discovery_beat` | — | Celery beat, triggers the task every 24h |
+| `redis` | — | Celery broker/backend |
+| `mysql_db` | — | MySQL 8.0 |
+
+All five share a single `app_network` bridge network. Only `web` publishes a
+port; MySQL and Redis are reachable only from inside the network.
+
+---
+
+## How the data gets in
+
+`vehicle_discovery_beat` fires the `fetch_cars` task every 24 hours. The worker
+pages through Back4App's `Car_Model_List` class 100 records at a time and
+writes new cars into MySQL, skipping any `objectId` already stored.
+
+Make, model, and year are **normalized** rather than stored as strings on each
+car — they live in `car_makes`, `car_models`, and `car_years`, and `cars` holds
+foreign keys. The three form a hierarchy: a model belongs to a make, a year
+belongs to a model.
+
+```
+car_makes ──< car_models ──< car_years
+     ▲             ▲             ▲
+     └─────────── cars ──────────┘
+              (make_id, model_id, year_id)
+```
+
+To run the fetch immediately instead of waiting for the schedule:
+
+```bash
+docker exec -it vehicle_discovery_worker python -c \
+  "from app.tasks.fetch_cars import fetch_cars_task; print(fetch_cars_task.delay())"
+```
 
 ---
 
@@ -33,175 +69,174 @@ A containerized REST API with JWT authentication, Role-Based Access Control (RBA
 
 ```
 task2/
-├── app/                        # Main API service
+├── app/
 │   ├── api/
-│   │   ├── auth.py             # POST /auth/signup, POST /auth/login
-│   │   └── routes.py           # Protected endpoints
+│   │   ├── auth/               # POST /auth/signup, POST /auth/login
+│   │   └── cars/               # GET /cars/, PUT /cars/{id}, DELETE /cars/{id}
+│   ├── common/
+│   │   └── schemas.py          # Shared pagination query + response schemas
 │   ├── core/
-│   │   ├── config.py           # App settings and env vars
-│   │   ├── security.py         # JWT creation, password hashing
-│   │   └── dependencies.py     # Auth guards (get_current_user, require_role)
+│   │   ├── config.py           # Env vars and connection strings
+│   │   ├── dependencies.py     # get_current_user, @authenticate
+│   │   └── security.py         # JWT creation/decoding, password hashing
 │   ├── db/
-│   │   └── database.py         # Database connection setup
-│   ├── models/
-│   │   └── user.py             # SQLAlchemy User model
-│   ├── schemas/
-│   │   └── user.py             # Pydantic request/response schemas
+│   │   ├── base.py             # SQLAlchemy declarative Base
+│   │   └── database.py         # Engine and session factory
+│   ├── models/                 # User, Car, CarMake, CarModel, CarYear
+│   ├── tasks/
+│   │   └── fetch_cars.py       # Celery task pulling from Back4App
+│   ├── celery_app.py           # Celery config and beat schedule
 │   └── main.py                 # App entry point
-├── service2/                   # Second microservice
-│   ├── app/
-│   │   └── main.py             # Service2 endpoints
-│   ├── Dockerfile
-│   └── requirements.txt
-├── alembic/                    # Database migrations
-│   ├── versions/               # Migration files
-│   └── env.py                  # Alembic configuration
-├── alembic.ini                 # Alembic settings
-├── docker-compose.yml          # All services, networks, volumes
-├── Dockerfile                  # Main API container
-└── requirements.txt            # Python dependencies
+├── alembic/versions/           # Migrations
+├── scripts/                    # Container entrypoints (web, worker, beat)
+├── docker-compose.yml
+├── Dockerfile
+└── requirements.txt
 ```
 
 ---
 
-## Docker Networks
+## Setup
 
-| Network | Type | Used By |
-|---|---|---|
-| `frontend` | bridge | api, service2 (exposed to outside) |
-| `backend` | bridge | api, mysql (internal only) |
+### 1. Clone
 
-MySQL is only on the backend network, it cannot be reached directly from outside Docker. Only the `api` container can talk to it.
-
----
-
-## Prerequisites
-
-- Docker Desktop installed and running
-- Git installed
-- No need to install Python or MySQL locally, Docker handles everything
-
----
-
-## Deployment Steps
-
-### 1. Clone the repository
 ```bash
 git clone https://github.com/FurqanRaufHere/wanclouds-project.git
 cd wanclouds-project
 ```
 
-### 2. Start all services
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and fill in the blanks:
+
+| Variable | Notes |
+|---|---|
+| `SECRET_KEY` | Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `BACK4APP_APP_ID` | Back4App dashboard → App Settings → Security & Keys |
+| `BACK4APP_MASTER_KEY` | Same page |
+
+The MySQL and Redis values in `.env.example` already match `docker-compose.yml`
+and work as-is.
+
+### 3. Start
+
 ```bash
 docker-compose up --build
 ```
 
-This will:
-- Build the `api` and `service2` containers
-- Pull the `mysql:8.0` image
-- Create `frontend` and `backend` Docker networks
-- Start all 3 containers
+`web` waits for MySQL to accept connections, runs `alembic upgrade head`, then
+starts uvicorn. No manual migration step needed.
 
-### 3. Run database migrations
-Open a new terminal and run:
-```bash
-docker exec -it fastapi_app alembic upgrade head
-```
+### 4. Verify
 
-This creates the `users` table in MySQL.
-
-### 4. Verify everything is running
 ```bash
 docker ps
 ```
 
-You should see 3 containers running:
-- `fastapi_app` on port 8000
-- `fastapi_service2` on port 8001
-- `mysql_db` on port 3306
-
-### 5. Access the API
-- Swagger UI (Service 1): `http://localhost:8000/docs`
-- Swagger UI (Service 2): `http://localhost:8001/docs`
+Five containers should be running. Then open <http://localhost:8000/docs>.
 
 ---
 
-## API Endpoints
+## API
 
-### Auth (Public — no token needed)
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/auth/signup` | Create a new user account |
-| POST | `/auth/login` | Login and receive JWT token |
-
-**Signup request body:**
-```json
-{
-  "username": "ali",
-  "email": "ali@example.com",
-  "password": "secret123"
-}
-```
-
-**Login request body:**
-```json
-{
-  "email": "ali@example.com",
-  "password": "secret123"
-}
-```
-
-**Login response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiJ9...",
-  "token_type": "bearer"
-}
-```
-
-### Protected (Requires Bearer Token)
-
-Add this header to all protected requests:
-```
-Authorization: Bearer <your_access_token>
-```
-
-| Method | Endpoint | Role Required | Description |
-|---|---|---|---|
-| GET | `/hello` | any user | Personalized hello message |
-| GET | `/status` | any user | Service status |
-| POST | `/predict` | any user | Mock prediction |
-| GET | `/admin` | admin only | Admin panel |
-
-### Service 2
+### Auth — public
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/ping` | Service2 health check |
-| GET | `/fetch-status` | Calls Service1 /status internally |
-| GET | `/fetch-hello` | Calls Service1 /hello internally |
+| `POST` | `/auth/signup` | Create an account |
+| `POST` | `/auth/login` | Exchange credentials for a JWT |
+
+```bash
+curl -X POST localhost:8000/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ali","email":"ali@example.com","password":"secret123"}'
+
+curl -X POST localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ali@example.com","password":"secret123"}'
+```
+
+Login returns:
+
+```json
+{ "access_token": "eyJhbGciOiJIUzI1NiJ9...", "token_type": "bearer" }
+```
+
+### Cars — requires `Authorization: Bearer <token>`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/cars/` | List cars, paginated |
+| `PUT` | `/cars/{car_id}` | Update a car |
+| `DELETE` | `/cars/{car_id}` | Delete a car |
+
+**Pagination** — `skip` (default 0) and `limit` (default 20, max 100):
+
+```bash
+curl "localhost:8000/cars/?skip=0&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "total": 4821,
+  "skip": 0,
+  "limit": 20,
+  "items": [
+    { "id": "a3f...", "make": "Toyota", "model": "Corolla", "category": "Sedan", "year": 2020 }
+  ]
+}
+```
+
+**Update** — all fields optional; only what you send is changed. Passing a new
+`make`/`model`/`year` creates the lookup rows if they don't exist yet.
+
+```bash
+curl -X PUT localhost:8000/cars/a3f... \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"category":"Hatchback"}'
+```
+
+Returns `404` if the id is unknown. `DELETE` returns `204` with no body.
 
 ---
 
-## Database Access (CLI)
+## Database Access
 
-Connect to MySQL directly:
 ```bash
 docker exec -it mysql_db mysql -u appuser -papppassword appdb
 ```
 
-Useful SQL commands:
 ```sql
 SHOW TABLES;
-DESCRIBE users;
-SELECT id, username, email, role FROM users;
+SELECT COUNT(*) FROM cars;
+
+SELECT c.id, mk.name AS make, md.name AS model, y.year, c.category
+FROM cars c
+JOIN car_makes  mk ON mk.id = c.make_id
+JOIN car_models md ON md.id = c.model_id
+LEFT JOIN car_years y ON y.id = c.year_id
+LIMIT 10;
 ```
 
 ---
 
-## Stopping the Services
+## Common Tasks
 
 ```bash
+# Follow logs for one service
+docker-compose logs -f web
+docker-compose logs -f vehicle_discovery_worker
+
+# Create a migration after changing a model
+docker exec -it web alembic revision --autogenerate -m "describe the change"
+docker exec -it web alembic upgrade head
+
+# Stop everything (add -v to also drop the MySQL volume)
 docker-compose down
 ```
