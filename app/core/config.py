@@ -19,3 +19,11 @@ DATABASE_URL = (
     f"mysql+pymysql://{SQLAlchemyConfig.MYSQL_USER}:{SQLAlchemyConfig.MYSQL_PASSWORD}"
     f"@{SQLAlchemyConfig.MYSQL_HOST}:{SQLAlchemyConfig.MYSQL_PORT}/{SQLAlchemyConfig.MYSQL_DB}"
 )
+
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+BACK4APP_APP_ID = os.getenv("BACK4APP_APP_ID")
+BACK4APP_MASTER_KEY = os.getenv("BACK4APP_MASTER_KEY")
+BACK4APP_BASE_URL = "https://parseapi.back4app.com/classes"
+

@@ -8,12 +8,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.db.base import Base
 from app.models.user import User  # noqa: F401
+from app.models.car_make import CarMake  # noqa: F401
+from app.models.car_model import CarModel  # noqa: F401
+from app.models.car_year import CarYear  # noqa: F401
+from app.models.cars import Car    # noqa: F401
 from app.core.config import DATABASE_URL
 
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
