@@ -57,6 +57,8 @@ def edit_car(
 
     fields = payload.model_dump(exclude_unset=True)
     if any(key in fields for key in (Car.MAKE_KEY, Car.MODEL_KEY, Car.YEAR_KEY)):
+        # Pops make/model/year off `fields` and sets the FK columns instead,
+        # so the loop below only sees the car's own columns.
         apply_make_model_year(db, car, fields)
 
     for field, value in fields.items():
@@ -92,8 +94,10 @@ def apply_make_model_year(db: Session, car: Car, fields: dict) -> None:
     be resolved together, top down. Any part the payload doesn't change falls
     back to the car's current value.
     """
-    make_name = fields.pop(Car.MAKE_KEY, car.make)
-    model_name = fields.pop(Car.MODEL_KEY, car.model)
+    # `or car.<field>` rather than a pop() default: the key is present but None
+    # when the client explicitly sends null, and make/model are NOT NULL.
+    make_name = fields.pop(Car.MAKE_KEY, None) or car.make
+    model_name = fields.pop(Car.MODEL_KEY, None) or car.model
     year_value = fields.pop(Car.YEAR_KEY, car.year)
 
     make = get_or_create_make(db, make_name)
