@@ -63,13 +63,3 @@ class Car(Base):
     @property
     def year(self) -> int | None:
         return self.year_rel.year if self.year_rel else None
-
-    def to_json(self) -> dict:
-        return {
-            self.ID_KEY: self.id,
-            self.MAKE_KEY: self.make,
-            self.MODEL_KEY: self.model,
-            self.CATEGORY_KEY: self.category,
-            self.YEAR_KEY: self.year,
-            self.OBJECT_ID_KEY: self.object_id,
-        }

@@ -34,13 +34,6 @@ class CarModel(Base):
         cascade="all, delete-orphan",
     )
 
-    def to_json(self) -> dict:
-        return {
-            self.ID_KEY: self.id,
-            self.NAME_KEY: self.name,
-            self.MAKE_ID_KEY: self.make_id,
-        }
-
 
 def get_or_create_model(db: Session, make_id: int, name: str) -> "CarModel":
     """Return the CarModel with this name under the given make, creating it if needed."""

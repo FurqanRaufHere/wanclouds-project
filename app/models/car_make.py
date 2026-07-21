@@ -24,9 +24,6 @@ class CarMake(Base):
         cascade="all, delete-orphan",
     )
 
-    def to_json(self) -> dict:
-        return {self.ID_KEY: self.id, self.NAME_KEY: self.name}
-
 
 def get_or_create_make(db: Session, name: str) -> "CarMake":
     """Return the CarMake with this name, creating it if needed."""
