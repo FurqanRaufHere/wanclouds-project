@@ -24,6 +24,19 @@ config.set_main_option("sqlalchemy.url", DATABASE_URL)
 target_metadata = Base.metadata
 
 
+def skip_empty_revision(context_, revision, directives) -> None:
+    """Don't write a migration file when autogenerate found nothing.
+
+    Without this, `alembic revision --autogenerate` always produces a file,
+    even one whose upgrade() is just `pass`. Those empty revisions still
+    extend the migration chain and have to be reviewed and reverted by hand.
+    """
+    if getattr(config.cmd_opts, "autogenerate", False):
+        if directives[0].upgrade_ops.is_empty():
+            directives[:] = []
+            print("No schema changes detected — no migration file generated.")
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -45,7 +58,14 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata
+            target_metadata=target_metadata,
+            # Off by default, so a changed column type (String(100) -> String(200),
+            # Integer -> BigInteger) is silently missed and the migration comes
+            # out empty even though the model moved.
+            compare_type=True,
+            # Likewise for server-side defaults.
+            compare_server_default=True,
+            process_revision_directives=skip_empty_revision,
         )
         with context.begin_transaction():
             context.run_migrations()

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.common.schemas import get_pagination_schema
+from app.common.schemas import PaginatedResponse
 
 
 class CarResponse(BaseModel):
@@ -20,4 +20,4 @@ class CarUpdateRequest(BaseModel):
     year: int | None = None
 
 
-CarsListResponse = get_pagination_schema(CarResponse)
+CarsListResponse = PaginatedResponse[CarResponse]

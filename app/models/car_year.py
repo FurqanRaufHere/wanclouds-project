@@ -25,13 +25,6 @@ class CarYear(Base):
     # Many years belong to one model.
     model = relationship("CarModel", back_populates="years")
 
-    def to_json(self) -> dict:
-        return {
-            self.ID_KEY: self.id,
-            self.YEAR_KEY: self.year,
-            self.MODEL_ID_KEY: self.model_id,
-        }
-
 
 def get_or_create_year(db: Session, model_id: int, year: int) -> "CarYear":
     """Return the CarYear for this year under the given model, creating it if needed."""

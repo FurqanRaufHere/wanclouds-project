@@ -28,12 +28,3 @@ class User(Base):
     email = Column(String(EMAIL_MAX_LEN), unique=True, index=True, nullable=False)
     hashed_password = Column(String(PASSWORD_HASH_LEN), nullable=False)
     role = Column(Enum(*ROLES), default=ROLE_USER, nullable=False)
-
-    def to_json(self) -> dict:
-        return {
-            self.ID_KEY: self.id,
-            self.USERNAME_KEY: self.username,
-            self.EMAIL_KEY: self.email,
-            self.HASHED_PASSWORD_KEY: self.hashed_password,
-            self.ROLE_KEY: self.role,
-        }

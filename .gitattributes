@@ -1,0 +1,4 @@
+# Shell scripts run inside Linux containers — CRLF breaks `sh` with
+# "Syntax error: end of file unexpected". Keep them LF regardless of
+# the checkout platform or core.autocrlf.
+*.sh text eol=lf
