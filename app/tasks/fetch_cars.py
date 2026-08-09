@@ -67,17 +67,23 @@ def fetch_cars_task():
                 if year_value is not None:
                     year_id = get_or_create_year(db, model.id, year_value).id
 
+                # Plain column mappings rather than Car() instances: this path
+                # only ever inserts, so building ORM objects buys nothing the
+                # rows use — instance state, the identity map and event hooks
+                # are all constructed and then thrown away.
                 new_cars.append(
-                    Car(
-                        make_id=make.id,
-                        model_id=model.id,
-                        category=item.get("Category", ""),
-                        year_id=year_id,
-                        object_id=item.get("objectId", ""),
-                    )
+                    {
+                        "make_id": make.id,
+                        "model_id": model.id,
+                        "category": item.get("Category", ""),
+                        "year_id": year_id,
+                        "object_id": item.get("objectId", ""),
+                    }
                 )
 
-            db.bulk_save_objects(new_cars)
+            # Car.id's uuid default still applies here, same as it did for
+            # bulk_save_objects, so the mappings don't carry an explicit id.
+            db.bulk_insert_mappings(Car, new_cars)
             db.commit()
 
             total_saved += len(new_cars)
