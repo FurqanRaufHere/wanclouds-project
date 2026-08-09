@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session, joinedload
 
 from app.models.car_make import get_or_create_make
 from app.models.car_model import get_or_create_model
@@ -7,14 +7,30 @@ from app.models.car_year import get_or_create_year
 from app.models.cars import Car
 
 
-def get_cars_paginated(db: Session, skip: int, limit: int) -> tuple[list[Car], int]:
-    items = db.query(Car).offset(skip).limit(limit).all()
+def _car_query(db: Session) -> Query:
+    """Base Car query with the name lookups eager-loaded.
+
+    CarResponse reads make/model/year, which are relationship-backed
+    properties. Without joinedload each car in a page triggers three extra
+    SELECTs; with it the whole page is one query.
+    """
+    return db.query(Car).options(
+        joinedload(Car.make_rel),
+        joinedload(Car.model_rel),
+        joinedload(Car.year_rel),
+    )
+
+
+def get_cars_paginated(db: Session, offset: int, limit: int) -> tuple[list[Car], int]:
+    # Order explicitly: LIMIT/OFFSET without ORDER BY has no defined row order,
+    # so the same row can show up on two pages, or on none.
+    items = _car_query(db).order_by(Car.id).offset(offset).limit(limit).all()
     total = db.query(Car).count()
     return items, total
 
 
 def get_car_or_404(db: Session, car_id: str) -> Car:
-    car = db.query(Car).filter(Car.id == car_id).first()
+    car = _car_query(db).filter(Car.id == car_id).first()
     if car is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -50,9 +66,5 @@ def update_car(db: Session, car: Car, data: dict) -> Car:
 
 
 def delete_car(db: Session, car: Car) -> None:
-    # A car only *references* make/model/year (many-to-one); it is the child
-    # side of those FKs and nothing references a car in turn. So deleting a car
-    # is a single DELETE on the cars row: it is never blocked by a relationship,
-    # and it never cascades into the shared make/model/year lookup rows.
     db.delete(car)
     db.commit()

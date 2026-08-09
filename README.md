@@ -72,9 +72,9 @@ task2/
 ├── app/
 │   ├── api/
 │   │   ├── auth/               # POST /auth/signup, POST /auth/login
-│   │   └── cars/               # GET /cars/, PUT /cars/{id}, DELETE /cars/{id}
+│   │   └── cars/               # GET /cars/, GET|PUT|DELETE /cars/{id}
 │   ├── common/
-│   │   └── schemas.py          # Shared pagination query + response schemas
+│   │   └── schemas.py          # Page-based pagination query + response envelope
 │   ├── core/
 │   │   ├── config.py           # Env vars and connection strings
 │   │   ├── dependencies.py     # get_current_user, @authenticate
@@ -171,25 +171,36 @@ Login returns:
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/cars/` | List cars, paginated |
+| `GET` | `/cars/{car_id}` | Fetch a single car |
 | `PUT` | `/cars/{car_id}` | Update a car |
 | `DELETE` | `/cars/{car_id}` | Delete a car |
 
-**Pagination** — `skip` (default 0) and `limit` (default 20, max 100):
+**Pagination** — `page` (1-based, default 1) and `limit` (default 20, max 100):
 
 ```bash
-curl "localhost:8000/cars/?skip=0&limit=20" \
+curl "localhost:8000/cars/?page=1&limit=20" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
 {
   "total": 4821,
-  "skip": 0,
+  "page": 1,
+  "pages": 242,
   "limit": 20,
   "items": [
     { "id": "a3f...", "make": "Toyota", "model": "Corolla", "category": "Sedan", "year": 2020 }
   ]
 }
+```
+
+Results are ordered by `id` so a row never lands on two pages. Each page is a
+single query — make, model, and year are joined in, not lazy-loaded per row.
+
+**Fetch one** — same shape as a single `items` entry, `404` if the id is unknown:
+
+```bash
+curl localhost:8000/cars/a3f... -H "Authorization: Bearer $TOKEN"
 ```
 
 **Update** — all fields optional; only what you send is changed. Passing a new
